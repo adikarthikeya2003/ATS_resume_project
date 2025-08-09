@@ -1,0 +1,221 @@
+{% extends 'ats_app/base.html' %}
+
+{% block title %}Analysis Results - ATS Score Predictor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <!-- Overall Score -->
+        <div class="card mb-4">
+            <div class="card-body text-center">
+                <h2>ATS Score</h2>
+                <div class="ats-score {% if analysis.ats_score >= 80 %}score-excellent{% elif analysis.ats_score >= 60 %}score-good{% else %}score-poor{% endif %}">
+                    {{ analysis.ats_score|floatformat:1 }}%
+                </div>
+                <p class="text-muted">
+                    {% if analysis.ats_score >= 80 %}
+                        Excellent! Your resume is well-optimized for ATS systems.
+                    {% elif analysis.ats_score >= 60 %}
+                        Good score. There's room for improvement.
+                    {% else %}
+                        Your resume needs optimization to pass ATS filters.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        <!-- Score Breakdown -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar me-2"></i>Score Breakdown</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="breakdownChart" width="400" height="200"></canvas>
+                
+                <div class="row mt-4">
+                    {% for category, data in breakdown.items %}
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>{{ category|title }}</span>
+                            <strong>{{ data.score|floatformat:1 }}%</strong>
+                        </div>
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar {% if data.score >= 80 %}bg-success{% elif data.score >= 60 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                 style="width: {{ data.score }}%"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Missing Skills -->
+        {% if missing_skills %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-exclamation-triangle me-2"></i>Missing Skills</h5>
+            </div>
+            <div class="card-body">
+                <p>Consider adding these skills to improve your ATS score:</p>
+                {% for skill in missing_skills %}
+                    <span class="skill-chip missing-skill">{{ skill|title }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Suggestions -->
+        {% if suggestions %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-lightbulb me-2"></i>Improvement Suggestions</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    {% for suggestion in suggestions %}
+                        <li class="list-group-item">
+                            <i class="fas fa-arrow-right text-primary me-2"></i>
+                            {{ suggestion }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-4">
+        <!-- Actions -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-tools me-2"></i>Actions</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-success btn-block mb-2" onclick="updateResume()">
+                    <i class="fas fa-magic me-2"></i>Update Resume
+                </button>
+                
+                {% if analysis.updated_resume_path %}
+                <a href="{% url 'download_resume' analysis.id %}" class="btn btn-primary btn-block mb-2">
+                    <i class="fas fa-download me-2"></i>Download Updated Resume
+                </a>
+                {% endif %}
+                
+                <a href="{% url 'index' %}" class="btn btn-outline-secondary btn-block">
+                    <i class="fas fa-plus me-2"></i>Analyze Another Resume
+                </a>
+            </div>
+        </div>
+
+        <!-- Analysis Details -->
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle me-2"></i>Analysis Details</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Analyzed:</strong> {{ analysis.created_at|date:"M d, Y H:i" }}</p>
+                <p><strong>File:</strong> {{ analysis.resume_file.name|slice:":50" }}{% if analysis.resume_file.name|length > 50 %}...{% endif %}</p>
+                
+                <!-- Quick Stats -->
+                {% if breakdown.keyword_match %}
+                <hr>
+                <small class="text-muted">
+                    <strong>Keywords:</strong> {{ breakdown.keyword_match.matched_count }}/{{ breakdown.keyword_match.total_jd_keywords }} matched<br>
+                    {% if breakdown.skill_match %}
+                    <strong>Skills:</strong> {{ breakdown.skill_match.matched_count }}/{{ breakdown.skill_match.total_jd_skills }} matched
+                    {% endif %}
+                </small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Update Modal -->
+<div class="modal fade" id="updateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Updating Resume</h5>
+            </div>
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>We're updating your resume with missing skills and keywords...</p>
+                <small class="text-muted">This may take a few moments</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Chart.js visualization
+const ctx = document.getElementById('breakdownChart').getContext('2d');
+const scoreData = {{ score_data|safe }};
+
+new Chart(ctx, {
+    type: 'radar',
+    data: {
+        labels: scoreData.labels,
+        datasets: [{
+            label: 'Your Score',
+            data: scoreData.scores,
+            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 2,
+            pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+            pointBorderColor: '#fff',
+            pointHoverBackgroundColor: '#fff',
+            pointHoverBorderColor: 'rgba(54, 162, 235, 1)'
+        }]
+    },
+    options: {
+        elements: {
+            line: {
+                borderWidth: 3
+            }
+        },
+        scales: {
+            r: {
+                angleLines: {
+                    display: false
+                },
+                suggestedMin: 0,
+                suggestedMax: 100
+            }
+        }
+    }
+});
+
+// Update resume function
+function updateResume() {
+    const modal = new bootstrap.Modal(document.getElementById('updateModal'));
+    modal.show();
+    
+    fetch('{% url "update_resume" analysis.id %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        modal.hide();
+        if (data.success) {
+            alert('Resume updated successfully!');
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        modal.hide();
+        alert('Error updating resume: ' + error.message);
+    });
+}
+</script>
+{% endblock %}

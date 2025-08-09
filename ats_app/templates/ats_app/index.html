@@ -1,0 +1,165 @@
+{% extends 'ats_app/base.html' %}
+
+{% block title %}Upload Resume - ATS Score Predictor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-upload me-2"></i>Analyze Your Resume</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data" id="uploadForm">
+                    {% csrf_token %}
+                    
+                    <!-- Resume Upload -->
+                    <div class="mb-4">
+                        <label for="{{ form.resume_file.id_for_label }}" class="form-label">
+                            {{ form.resume_file.label }}
+                        </label>
+                        <div class="upload-area" id="uploadArea">
+                            <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">Drag and drop your resume here or click to browse</p>
+                            {{ form.resume_file }}
+                        </div>
+                        {% if form.resume_file.help_text %}
+                            <small class="form-text text-muted">{{ form.resume_file.help_text }}</small>
+                        {% endif %}
+                        {% if form.resume_file.errors %}
+                            <div class="text-danger">
+                                {% for error in form.resume_file.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Job Description -->
+                    <div class="mb-4">
+                        <label for="{{ form.job_description.id_for_label }}" class="form-label">
+                            {{ form.job_description.label }}
+                        </label>
+                        {{ form.job_description }}
+                        {% if form.job_description.help_text %}
+                            <small class="form-text text-muted">{{ form.job_description.help_text }}</small>
+                        {% endif %}
+                        {% if form.job_description.errors %}
+                            <div class="text-danger">
+                                {% for error in form.job_description.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary btn-lg" id="analyzeBtn">
+                        <i class="fas fa-search me-2"></i>Analyze Resume
+                    </button>
+                    
+                    <!-- Loading State -->
+                    <div id="loadingState" class="d-none text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Analyzing your resume... This may take a few moments.</p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Features Card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5><i class="fas fa-star me-2"></i>Features</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check text-success me-2"></i>ATS Score Calculation</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Keyword Matching</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Skills Analysis</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Semantic Similarity</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Resume Optimization</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Improvement Suggestions</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Recent Analyses -->
+        {% if recent_analyses %}
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-history me-2"></i>Recent Analyses</h5>
+            </div>
+            <div class="card-body">
+                {% for analysis in recent_analyses %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted">{{ analysis.created_at|date:"M d, H:i" }}</small>
+                    <span class="badge bg-primary">{{ analysis.ats_score|floatformat:1 }}%</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadForm = document.getElementById('uploadForm');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const loadingState = document.getElementById('loadingState');
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('{{ form.resume_file.id_for_label }}');
+
+    // File upload drag and drop
+    uploadArea.addEventListener('click', () => fileInput.click());
+    
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = '#0d6efd';
+        uploadArea.style.backgroundColor = '#f8f9fa';
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.style.borderColor = '#dee2e6';
+        uploadArea.style.backgroundColor = '';
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = '#dee2e6';
+        uploadArea.style.backgroundColor = '';
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            updateFileName(files[0].name);
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            updateFileName(e.target.files[0].name);
+        }
+    });
+
+    function updateFileName(name) {
+        const uploadText = uploadArea.querySelector('p');
+        uploadText.textContent = `Selected: ${name}`;
+        uploadText.classList.add('text-primary');
+    }
+
+    // Form submission
+    uploadForm.addEventListener('submit', function() {
+        analyzeBtn.classList.add('d-none');
+        loadingState.classList.remove('d-none');
+    });
+});
+</script>
+{% endblock %}
